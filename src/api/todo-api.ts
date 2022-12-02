@@ -1,3 +1,5 @@
+import fakeSocket from "./fake-socket";
+
 export type TodoList = {
     items: Todo[];
     name: string;
@@ -17,8 +19,8 @@ export type ApiResponseError = {
         description: string;
     };
 }
-
 class TodoApi {
+    // You can change the success rate in the constructor to get random error responses from the api
     private successRate: number;
 
     private todos : TodoList[];
@@ -79,6 +81,13 @@ class TodoApi {
                         name,
                         items: []
                     });
+                    fakeSocket.dispatchMessage({
+                        type: "createList",
+                        message: {
+                            name: this.todos[this.todos.length - 1].name,
+                            items: [...this.todos[this.todos.length - 1].items]
+                        }
+                    });
                     resolve({
                         response: length-1,
                     });
@@ -105,6 +114,12 @@ class TodoApi {
                             reject(this.buildErrorResponse(400, "index out of bound"));
                         }
                         this.todos.splice(listIndex, 1);
+                        fakeSocket.dispatchMessage({
+                            type: "deleteList",
+                            message: {
+                                index: listIndex,
+                            }
+                        });
                         resolve({
                             response: true,
                         });
@@ -134,7 +149,14 @@ class TodoApi {
                             reject(this.buildErrorResponse(400, "index out of bound"));
                         }
                         // A real backend should validate that the item has the right format
-                        this.todos[listIndex].items.push(item);
+                        this.todos[listIndex].items.push({...item});
+                        fakeSocket.dispatchMessage({
+                            type: "addToDo",
+                            message: {
+                                listIndex: listIndex,
+                                item: {...item}
+                            }
+                        });
                         resolve({
                             response: true,
                         });
@@ -165,6 +187,13 @@ class TodoApi {
                         }
 
                         this.todos[listIndex].items.splice(todoIndex, 1);
+                        fakeSocket.dispatchMessage({
+                            type: "removeTodo",
+                            message: {
+                                listIndex: listIndex,
+                                itemIndex: todoIndex
+                            }
+                        });
                         resolve({
                             response: true,
                         });
@@ -196,6 +225,14 @@ class TodoApi {
                         const todo = this.todos[listIndex].items.splice(sourceIndex, 1);
                         const realDest = destIndex < sourceIndex ? destIndex : destIndex - 1;
                         this.todos[listIndex].items.splice(realDest, 0, ...todo);
+                        fakeSocket.dispatchMessage({
+                            type: "moveTodo",
+                            message: {
+                                listIndex,
+                                sourceIndex,
+                                destIndex
+                            }
+                        });
                         resolve({
                             response: true,
                         });
@@ -225,6 +262,14 @@ class TodoApi {
                             reject(this.buildErrorResponse(400, "index out of bound"));
                         }
                         this.todos[listIndex].items[itemIndex] = {...newValue};
+                        fakeSocket.dispatchMessage({
+                            type: "editTodo",
+                            message: {
+                                listIndex,
+                                itemIndex,
+                                newValue
+                            }
+                        });
                         resolve({
                             response: true,
                         });
