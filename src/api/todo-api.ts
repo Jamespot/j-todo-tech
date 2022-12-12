@@ -223,8 +223,7 @@ class TodoApi {
                             reject(this.buildErrorResponse(400, "index out of bound"));
                         }
                         const todo = this.todos[listIndex].items.splice(sourceIndex, 1);
-                        const realDest = destIndex < sourceIndex ? destIndex : destIndex - 1;
-                        this.todos[listIndex].items.splice(realDest, 0, ...todo);
+                        this.todos[listIndex].items.splice(destIndex, 0, ...todo);
                         fakeSocket.dispatchMessage({
                             type: "moveTodo",
                             message: {
