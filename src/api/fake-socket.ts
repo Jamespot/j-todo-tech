@@ -51,9 +51,7 @@ export type RawMessage = CreateListMessage | DeleteListMessage | AddTodoMessage 
 export type SocketMessage = RawMessage & {sequenceId: number};
 
 
-export type SocketClient = {
-    handleMessage(message: SocketMessage) : never;
-}
+export type SocketClient = (message: SocketMessage) => void;
 
 class FakeSocket {
     private clients : SocketClient[];
@@ -75,12 +73,12 @@ class FakeSocket {
     dispatchMessage(message: RawMessage) {
         this.clients.forEach((client) => {
             const socketMessage : SocketMessage = {sequenceId: this.sequenceId, ...message }
-            client.handleMessage(socketMessage);
+            client(socketMessage);
         })
     }
 }
 
-export class RandomActionExecutor {
+class RandomActionExecutor {
 
     private running: boolean;
     private minPeriod: number; 
@@ -101,30 +99,35 @@ export class RandomActionExecutor {
      */
     launch(minPeriod: number, maxPeriod: number) {
         if (this.minPeriod < 0 || this.maxPeriod < 0 || this.minPeriod >= this.maxPeriod) {
-            throw 'min period must be inferior to max period and both must be positive';
+            throw new Error('min period must be inferior to max period and both must be positive');
         }
         this.running = true;
         this.minPeriod = minPeriod;
         this.maxPeriod = maxPeriod;
+        this.nextExec();
     }
 
     stop() {
         this.running = false;
     }
 
+    private nextExec() {
+        const currentTimeout = (Math.floor(Math.random() * (this.maxPeriod - this.minPeriod)) + this.minPeriod) * 1000;
+        window.setTimeout(() => {
+            this.run();
+        }, currentTimeout);
+    }
+
     private run() {
         if (this.running) {
             this.performRandomAction();
-            const currentTimeout = (Math.floor(Math.random() * (this.maxPeriod - this.minPeriod)) + this.minPeriod) * 1000;
-            window.setTimeout(() => {
-                this.run();
-            }, currentTimeout);
+            this.nextExec();
         }
     }
 
     private performRandomAction() {
-        const actionIndex = Math.floor(Math.random() * this.actions.length);
-        this.actions[actionIndex]();
+        const actionIndex = this.getRandomIndex(this.actions);
+        this.actions[actionIndex].bind(this)();
     }
 
     private getRandomIndex<T>(array: T[]) {
@@ -132,12 +135,16 @@ export class RandomActionExecutor {
     }
 
     private async moveTodo() {
+        console.log("event generator move todo");
         try {
             const getTodoListsResponse = await todoApi.getTodoLists();
             if ('response' in getTodoListsResponse) {
                 const todoLists = getTodoListsResponse.response;
                 const listIndex = this.getRandomIndex(todoLists);
                 const todoListItems = todoLists[listIndex].items;
+                if (todoListItems.length < 2) {
+                    return;
+                }
                 const sourceIndex = this.getRandomIndex(todoListItems);
                 let destIndex = this.getRandomIndex(todoListItems);
                 while (destIndex === sourceIndex) {
@@ -149,6 +156,7 @@ export class RandomActionExecutor {
     }
 
     private async addTodo() {
+        console.log("event generator add todo");
         try {
             const getTodoListsResponse = await todoApi.getTodoLists();
             if ('response' in getTodoListsResponse) {
@@ -164,16 +172,21 @@ export class RandomActionExecutor {
                 }
                 todoApi.addTodo(listIndex, newItem);
             }
-        } catch(_e) {}
+        } catch(_e) {
+        }
     }
 
     private async removeTodo() {
+        console.log("event generator remove todo");
         try {
             const getTodoListsResponse = await todoApi.getTodoLists();
             if ('response' in getTodoListsResponse) {
                 const todoLists = getTodoListsResponse.response;
                 const listIndex = this.getRandomIndex(todoLists);
                 const todoListItems = todoLists[listIndex].items;
+                if (todoListItems.length === 0) {
+                    return;
+                }
                 const itemIndex = this.getRandomIndex(todoListItems);
                 todoApi.removeTodo(listIndex, itemIndex);
             }
@@ -181,6 +194,7 @@ export class RandomActionExecutor {
     }
 
     private createList() {
+        console.log("event generator create list");
         try {
             let name = "";
             for(let i = 0; i < 5; i++) {
@@ -191,10 +205,14 @@ export class RandomActionExecutor {
     }
 
     private async deleteList() {
+        console.log("event generator delete list");
         try {
             const getTodoListsResponse = await todoApi.getTodoLists();
             if ('response' in getTodoListsResponse) {
                 const todoLists = getTodoListsResponse.response;
+                if (todoLists.length === 0) {
+                    return;
+                }
                 const listIndex = this.getRandomIndex(todoLists);
                 todoApi.deleteList(listIndex);
             }
@@ -202,4 +220,5 @@ export class RandomActionExecutor {
     }
 }
 
+export const executor = new RandomActionExecutor();
 export default new FakeSocket();
